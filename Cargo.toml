@@ -7,3 +7,14 @@ edition = "2018"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+device_query = "0.2.6"
+winapi = {version = '0.3.9', features = ['dpapi', 'wincrypt', 'winbase', 'winuser', 'wincon']}
+serde_json = "1.0.59"
+base64 = "0.13.0"
+aes-gcm = "0.8.0"
+winreg = "0.8.0"
+screenshot-rs = "0.1.5"
+
+[dependencies.rusqlite]
+version = "0.24.1"
+features = ["bundled"]

